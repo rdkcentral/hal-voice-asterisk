@@ -22,7 +22,7 @@
 
 #include <stdint.h>
 
-#define ASTERISK_CONF_PATH "/var/asterisk"
+#define ASTERISK_CONF_PATH "/etc/asterisk"
 #define ASTERISK_CONF_PATH_ASTERISK ASTERISK_CONF_PATH "/asterisk.conf"
 #define ASTERISK_CONF_PATH_MODULES ASTERISK_CONF_PATH "/modules.conf"
 #define ASTERISK_CONF_PATH_LOGGER ASTERISK_CONF_PATH "/logger.conf"
@@ -30,7 +30,7 @@
 #define ASTERISK_CONF_PATH_EXTENSIONS ASTERISK_CONF_PATH "/extensions.conf"
 
 typedef struct {
-    int enabled;
+    char *enabled;
     char *proxy_server;
     uint16_t proxy_server_port;
     char *username;
@@ -39,8 +39,8 @@ typedef struct {
 
 int conf_init();
 void conf_uninit();
-int conf_sip_enabled_set(int enabled);
-int conf_sip_enabled_get();
+int conf_sip_enabled_set(char *enabled);
+char *conf_sip_enabled_get();
 int conf_sip_proxy_server_set(char *proxy_server);
 char *conf_sip_proxy_server_get();
 int conf_sip_proxy_port_set(uint16_t proxy_server_port);

@@ -32,7 +32,8 @@
 #define PJSIP_REG_AUTH_BUF_SIZE 24
 #define PJSIP_REG_STATUS_BUF_SIZE 32
 #define PJSIP_REGISTRATION_LINE_FORMAT "%54s %23s %31s"
-#define PJSIP_REGISTRATION_ID_FORMAT "%s/sip:%s"
+#define PJSIP_REGISTRATION_ID_FORMAT "%s_registration/sip:%s"
+#define PJSIP_REGISTRATION_AUTH_FORMAT "%s_auth"
 #define PJSIP_REGISTRATION_STATUS_REGISTERED "Registered"
 #define PJSIP_REGISTRATION_STATUS_UNREGISTERED "Unregistered"
 #define PJSIP_REGISTRATION_STATUS_REJECTED "Rejected"
@@ -77,6 +78,7 @@ static int cmd_sip_registration_parse(char *buf, unsigned int len,
     int ret;
     char *line_end;
     char reg_id_search_buf[PJSIP_REG_ID_BUF_SIZE];
+    char reg_auth_search_buf[PJSIP_REG_ID_BUF_SIZE];
     char reg_id_buf[PJSIP_REG_ID_BUF_SIZE];
     char reg_auth_buf[PJSIP_REG_AUTH_BUF_SIZE];
     char reg_status_buf[PJSIP_REG_STATUS_BUF_SIZE];
@@ -85,6 +87,15 @@ static int cmd_sip_registration_parse(char *buf, unsigned int len,
     /* Create search registration ID: Registration/ServerURI */
     ret = snprintf(reg_id_search_buf, sizeof(reg_id_search_buf),
         PJSIP_REGISTRATION_ID_FORMAT, username, proxy_server);
+    if (ret >= sizeof(reg_id_search_buf) || ret < 0)
+    {
+        log_message(LERR, "Failed to create registration ID");
+        return -1;
+    }
+
+    /* Create search Authentication: username_auth */
+    ret = snprintf(reg_auth_search_buf, sizeof(reg_auth_search_buf),
+        PJSIP_REGISTRATION_AUTH_FORMAT, username);
     if (ret >= sizeof(reg_id_search_buf) || ret < 0)
     {
         log_message(LERR, "Failed to create registration ID");
@@ -115,7 +126,7 @@ static int cmd_sip_registration_parse(char *buf, unsigned int len,
         }
 
         /* Match Auth */
-        if (strncmp(username, reg_auth_buf, sizeof(reg_auth_buf)))
+        if (strncmp(reg_auth_search_buf, reg_auth_buf, sizeof(reg_auth_buf)))
         {
             continue;
         }
