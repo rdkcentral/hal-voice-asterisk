@@ -609,8 +609,18 @@ void conf_uninit()
 
 int conf_sip_enabled_set(char *enabled)
 {
-    free(g_sip_conf.enabled);
-    g_sip_conf.enabled = strdup(enabled ? enabled : "");
+    char *tmp_enabled = strdup(enabled ? enabled : "");
+
+    if (tmp_enabled == NULL)
+    {
+        log_message(LERR, "Failed to allocate memory\n");
+        return -1;
+    }
+    else
+    {
+        free(g_sip_conf.enabled);
+        g_sip_conf.enabled = tmp_enabled;
+    }
 
     return conf_set(&g_sip_conf);
 }
@@ -622,8 +632,18 @@ char *conf_sip_enabled_get()
 
 int conf_sip_proxy_server_set(char *proxy_server)
 {
-    free(g_sip_conf.proxy_server);
-    g_sip_conf.proxy_server = strdup(proxy_server ? proxy_server : "");
+    char *tmp_enabled = strdup(proxy_server ? proxy_server : "");
+
+    if (tmp_enabled == NULL)
+    {
+        log_message(LERR, "Failed to allocate memory\n");
+        return -1;
+    }
+    else
+    {
+        free(g_sip_conf.proxy_server);
+        g_sip_conf.proxy_server = tmp_enabled;
+    }
     
     return conf_set(&g_sip_conf);
 }
@@ -647,8 +667,18 @@ uint16_t conf_sip_proxy_server_port_get()
 
 int conf_sip_username_set(char *username)
 {
-    free(g_sip_conf.username);
-    g_sip_conf.username = strdup(username ? username : "");
+    char *tmp_enabled = strdup(username ? username : "");
+
+    if (tmp_enabled == NULL)
+    {
+        log_message(LERR, "Failed to allocate memory\n");
+        return -1;
+    }
+    else
+    {
+        free(g_sip_conf.username);
+        g_sip_conf.username = tmp_enabled;
+    }
     
     return conf_set(&g_sip_conf);
 }
@@ -660,8 +690,18 @@ char *conf_sip_username_get()
 
 int conf_sip_password_set(char *password)
 {
-    free(g_sip_conf.password);
-    g_sip_conf.password = strdup(password ? password : "");
+    char *tmp_enabled = strdup(password ? password : "");
+
+    if (tmp_enabled == NULL)
+    {
+        log_message(LERR, "Failed to allocate memory\n");
+        return -1;
+    }
+    else
+    {
+        free(g_sip_conf.password);
+        g_sip_conf.password = tmp_enabled;
+    }
     
     return conf_set(&g_sip_conf);
 }

@@ -96,7 +96,7 @@ static int cmd_sip_registration_parse(char *buf, unsigned int len,
     /* Create search Authentication: username_auth */
     ret = snprintf(reg_auth_search_buf, sizeof(reg_auth_search_buf),
         PJSIP_REGISTRATION_AUTH_FORMAT, username);
-    if (ret >= sizeof(reg_id_search_buf) || ret < 0)
+    if (ret >= sizeof(reg_auth_search_buf) || ret < 0)
     {
         log_message(LERR, "Failed to create registration ID");
         return -1;
