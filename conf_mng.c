@@ -26,8 +26,11 @@
 #include "log.h"
 #include "conf_mng.h"
 #include "str_utils.h"
+#include "process_utils.h"
 
 #define DEFAULT_SIP_PORT 5060
+#define ASTERISK_BIN "/usr/sbin/asterisk"
+#define PJSIP_AND_EXTENSION_RELOAD "core restart now"
 
 #define ASTERISK_CONF \
     "[directories](!)\n" \
@@ -65,10 +68,10 @@
     "\n"
 
 #define ASTERISK_CONF_PJSIP_OUTBOUND_REGISTRATION \
-    "[%s]\n" \
+    "[%s_registration]\n" \
     "type=registration\n" \
     "transport=udp-transport\n" \
-    "outbound_auth=%s\n" \
+    "outbound_auth=%s_auth\n" \
     "server_uri=sip:%s%s\n" \
     "client_uri=sip:%s@%s%s\n" \
     "retry_interval=60\n" \
@@ -77,7 +80,7 @@
     "\n"
 
 #define ASTERISK_CONF_PJSIP_OUTBOUND_AUTH \
-    "[%s]\n" \
+    "[%s_auth]\n" \
     "type=auth\n" \
     "auth_type=userpass\n" \
     "username=%s\n" \
@@ -85,29 +88,29 @@
     "\n"
 
 #define ASTERISK_CONF_PJSIP_OUTBOUND_AOR \
-    "[%s]\n" \
+    "[%s_aor]\n" \
     "type=aor\n" \
     "contact=sip:%s%s\n" \
     "\n"
 
 #define ASTERISK_CONF_PJSIP_OUTBOUND_ENDPOINT \
-    "[%s]\n" \
+    "[%s_trunk]\n" \
     "type=endpoint\n" \
     "transport=udp-transport\n" \
     "context=from-external\n" \
     "disallow=all\n" \
     "allow=alaw\n" \
     "allow=ulaw\n" \
-    "outbound_auth=%s\n" \
-    "aors=%s\n" \
+    "outbound_auth=%s_auth\n" \
+    "aors=%s_aor\n" \
     "from_user=%s\n" \
     "direct_media=no\n" \
     "\n"
 
 #define ASTERISK_CONF_PJSIP_OUTBOUND_IDENTIFY \
-    "[%s]\n" \
+    "[%s_identify]\n" \
     "type=identify\n" \
-    "endpoint=%s\n" \
+    "endpoint=%s_trunk\n" \
     "match=%s\n" \
     "\n"
 
@@ -141,10 +144,11 @@
 
 #define ASTERISK_CONF_EXTENSIONS_FROM_INTERNAL \
     "[from-internal]\n" \
-    "exten => _XXX,1,Dial(PJSIP/${EXTEN})\n"
+    "exten => %s,1,Dial(PJSIP/%s)\n" \
+    "exten => %s,1,Dial(PJSIP/%s)\n"
 
 #define ASTERISK_CONF_EXTENSIONS_FROM_INTERNAL_OUTGOING \
-    "exten => _X.,1,Dial(PJSIP/${EXTEN}@%s)\n"
+    "exten => _X.,1,Dial(PJSIP/${EXTEN}@%s_trunk)\n"
 
 static sip_conf_t g_sip_conf = {};
 
@@ -412,7 +416,7 @@ Exit:
 
 static int conf_write_pjsip_outbound(FILE *file, sip_conf_t *sip_conf)
 {
-    if (sip_conf->enabled == 0)
+    if (sip_conf->enabled == NULL || strcmp(sip_conf->enabled, "Enabled"))
         return 0;
 
     if (conf_write_pjsip_outbound_registration(file, sip_conf) == -1)
@@ -506,7 +510,7 @@ static int conf_write_extensions(sip_conf_t *sip_conf)
     }
 
     /* Configure incoming call to ring on first extension */
-    if (sip_conf->enabled && sip_conf->username != NULL &&
+    if (sip_conf->enabled != NULL && !strcmp(sip_conf->enabled,"Enabled") && sip_conf->username != NULL &&
         fprintf(file, ASTERISK_CONF_EXTENSIONS_FROM_EXTERNAL,
         sip_conf->username, ASTERISK_EXTENSION_1, ASTERISK_EXTENSION_2) < 0)
     {
@@ -516,7 +520,8 @@ static int conf_write_extensions(sip_conf_t *sip_conf)
     }
 
     /* Configure calls between extensions */
-    if (fprintf(file, ASTERISK_CONF_EXTENSIONS_FROM_INTERNAL) < 0)
+    if (fprintf(file, ASTERISK_CONF_EXTENSIONS_FROM_INTERNAL, ASTERISK_EXTENSION_1,
+	ASTERISK_EXTENSION_1, ASTERISK_EXTENSION_2, ASTERISK_EXTENSION_2) < 0)
     {
         log_message(LERR, "Failed to write %s\n",
             ASTERISK_CONF_PATH_EXTENSIONS);
@@ -524,7 +529,7 @@ static int conf_write_extensions(sip_conf_t *sip_conf)
     }
 
     /* Configure outgoing call */
-    if (sip_conf->enabled && sip_conf->username != NULL &&
+    if (sip_conf->enabled != NULL && !strcmp(sip_conf->enabled,"Enabled") && sip_conf->username != NULL &&
         fprintf(file, ASTERISK_CONF_EXTENSIONS_FROM_INTERNAL_OUTGOING,
         sip_conf->username) < 0)
     {
@@ -544,6 +549,22 @@ Exit:
     return ret;
 }
 
+static int reload_conf_and_extension()
+{
+    pid_t pid;
+    int fd_out;
+    char *const argv[] = { ASTERISK_BIN, "-rx", PJSIP_AND_EXTENSION_RELOAD,
+        NULL };
+
+    if (process_execute(ASTERISK_BIN, argv, &pid, NULL, &fd_out,
+        NULL) == -1)
+    {
+        return -1;
+    }
+
+    return process_terminate(pid);
+}
+
 static int conf_set(sip_conf_t *sip_conf)
 {
     if (conf_write_asterisk() == -1)
@@ -561,6 +582,9 @@ static int conf_set(sip_conf_t *sip_conf)
     if (conf_write_extensions(sip_conf) == -1)
         return -1;
 
+    if (reload_conf_and_extension() == -1)
+        return -1;
+
     return 0;
 }
 
@@ -572,7 +596,8 @@ int conf_init()
 
 void conf_uninit()
 {
-    g_sip_conf.enabled = 0;
+    free(g_sip_conf.enabled);
+    g_sip_conf.enabled = NULL;
     free(g_sip_conf.proxy_server);
     g_sip_conf.proxy_server = NULL;
     g_sip_conf.proxy_server_port = 0;
@@ -582,22 +607,43 @@ void conf_uninit()
     g_sip_conf.password = NULL;
 }
 
-int conf_sip_enabled_set(int enabled)
+int conf_sip_enabled_set(char *enabled)
 {
-    g_sip_conf.enabled = enabled;
+    char *tmp_enabled = strdup(enabled ? enabled : "");
+
+    if (tmp_enabled == NULL)
+    {
+        log_message(LERR, "Failed to allocate memory\n");
+        return -1;
+    }
+    else
+    {
+        free(g_sip_conf.enabled);
+        g_sip_conf.enabled = tmp_enabled;
+    }
 
     return conf_set(&g_sip_conf);
 }
 
-int conf_sip_enabled_get()
+char *conf_sip_enabled_get()
 {
-    return g_sip_conf.enabled;
+    return g_sip_conf.enabled ? strdup(g_sip_conf.enabled) : NULL;
 }
 
 int conf_sip_proxy_server_set(char *proxy_server)
 {
-    free(g_sip_conf.proxy_server);
-    g_sip_conf.proxy_server = strdup(proxy_server ? proxy_server : "");
+    char *tmp_enabled = strdup(proxy_server ? proxy_server : "");
+
+    if (tmp_enabled == NULL)
+    {
+        log_message(LERR, "Failed to allocate memory\n");
+        return -1;
+    }
+    else
+    {
+        free(g_sip_conf.proxy_server);
+        g_sip_conf.proxy_server = tmp_enabled;
+    }
     
     return conf_set(&g_sip_conf);
 }
@@ -621,8 +667,18 @@ uint16_t conf_sip_proxy_server_port_get()
 
 int conf_sip_username_set(char *username)
 {
-    free(g_sip_conf.username);
-    g_sip_conf.username = strdup(username ? username : "");
+    char *tmp_enabled = strdup(username ? username : "");
+
+    if (tmp_enabled == NULL)
+    {
+        log_message(LERR, "Failed to allocate memory\n");
+        return -1;
+    }
+    else
+    {
+        free(g_sip_conf.username);
+        g_sip_conf.username = tmp_enabled;
+    }
     
     return conf_set(&g_sip_conf);
 }
@@ -634,8 +690,18 @@ char *conf_sip_username_get()
 
 int conf_sip_password_set(char *password)
 {
-    free(g_sip_conf.password);
-    g_sip_conf.password = strdup(password ? password : "");
+    char *tmp_enabled = strdup(password ? password : "");
+
+    if (tmp_enabled == NULL)
+    {
+        log_message(LERR, "Failed to allocate memory\n");
+        return -1;
+    }
+    else
+    {
+        free(g_sip_conf.password);
+        g_sip_conf.password = tmp_enabled;
+    }
     
     return conf_set(&g_sip_conf);
 }
