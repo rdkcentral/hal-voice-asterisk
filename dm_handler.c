@@ -28,25 +28,12 @@
 
 #define DM_OBJ_VOICE_SERVICE "Device.Services.VoiceService."
 #define DM_OBJ_VOICE_SERVICE_1 DM_OBJ_VOICE_SERVICE "1."
-#define DM_OBJ_VOICE_SIP DM_OBJ_VOICE_SERVICE_1 "SIP."
-#define DM_OBJ_VOICE_SIP_CLIENT DM_OBJ_VOICE_SIP "Client."
-#define DM_OBJ_VOICE_SIP_CLIENT_1 DM_OBJ_VOICE_SIP_CLIENT "1."
-#define DM_PARAM_SIP_CLIENT_AUTH_USER_NAME DM_OBJ_VOICE_SIP_CLIENT_1 \
-    "AuthUserName"
-#define DM_PARAM_SIP_CLIENT_AUTH_PASSWORD DM_OBJ_VOICE_SIP_CLIENT_1 \
-    "AuthPassword"
-#define DM_PARAM_SIP_CLIENT_ENABLE DM_OBJ_VOICE_SIP_CLIENT_1 \
-    "Enable"
-#define DM_PARAM_SIP_CLIENT_STATUS DM_OBJ_VOICE_SIP_CLIENT_1 \
-    "Status"
-
-#define DM_OBJ_VOICE_SIP_NETWORK DM_OBJ_VOICE_SIP "Network."
-#define DM_OBJ_VOICE_SIP_NETWORK_1 DM_OBJ_VOICE_SIP_NETWORK "1."
-
-#define DM_PARAM_NETWORK_OUTBOUND_PROXY DM_OBJ_VOICE_SIP_NETWORK_1 \
-    "OutboundProxy"
-#define DM_PARAM_NETWORK_OUTBOUND_PROXY_PORT DM_OBJ_VOICE_SIP_NETWORK_1 \
-    "OutboundProxyPort"
+#define DM_PARAM_SIP_CLIENT_AUTH_USER_NAME "Device.Services.VoiceService.1.VoiceProfile.1.Line.1.SIP.AuthUserName"
+#define DM_PARAM_SIP_CLIENT_AUTH_PASSWORD "Device.Services.VoiceService.1.VoiceProfile.1.Line.1.SIP.AuthPassword"
+#define DM_PARAM_SIP_CLIENT_ENABLE "Device.Services.VoiceService.1.VoiceProfile.1.Line.1.Enable"
+#define DM_PARAM_SIP_CLIENT_STATUS "Device.Services.VoiceService.1.VoiceProfile.1.Line.1.Status"
+#define DM_PARAM_NETWORK_OUTBOUND_PROXY "Device.Services.VoiceService.1.VoiceProfile.1.SIP.OutboundProxy"
+#define DM_PARAM_NETWORK_OUTBOUND_PROXY_PORT "Device.Services.VoiceService.1.VoiceProfile.1.SIP.OutboundProxyPort"
 
 typedef int (*set_func_t)(char *value);
 typedef int (*get_func_t)(char *req_name, dm_resp_cb_t resp_cb, void *context);
@@ -137,11 +124,11 @@ static int dm_param_status_get(char *req_name, dm_resp_cb_t resp_cb,
 {
     int ret;
     cmd_sip_reg_status_t reg_status;
-    int enabled =  conf_sip_enabled_get();
+    char *enabled =  conf_sip_enabled_get();
     char *username = conf_sip_username_get();
     char *proxy_server = conf_sip_proxy_server_get();
 
-    if (!enabled)
+    if ((enabled != NULL) && (strcmp(enabled, "Enabled")))
     {
         ret = resp_cb(DM_PARAM_SIP_CLIENT_STATUS, "Disabled", DM_PARAM_STRING,
             context);
@@ -183,6 +170,7 @@ static int dm_param_status_get(char *req_name, dm_resp_cb_t resp_cb,
     }
 
 Exit:
+    free(enabled);
     free(proxy_server);
     free(username);
 
@@ -193,17 +181,19 @@ static int dm_param_enable_get(char *req_name, dm_resp_cb_t resp_cb,
     void *context)
 {
     int ret;
-    int enabled = conf_sip_enabled_get();
+    char *enabled = conf_sip_enabled_get();
 
-    ret = resp_cb(DM_PARAM_SIP_CLIENT_ENABLE, enabled ? "1" : "0",
+    ret = resp_cb(DM_PARAM_SIP_CLIENT_ENABLE, enabled ? enabled : "",
         DM_PARAM_STRING, context);
+
+    free(enabled);
 
     return ret;
 }
 
 static int dm_param_enable_set(char *value)
 {
-    return conf_sip_enabled_set(!strcmp(value, "1"));
+    return conf_sip_enabled_set(value);
 }
 
 static dm_param_t params[] =
